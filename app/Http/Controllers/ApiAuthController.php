@@ -57,7 +57,7 @@ class ApiAuthController extends ApiBaseController
         $response = [
             'user' =>  $user,
             'token' => $user->createToken("API TOKEN")->plainTextToken,
-            'tasks' => $user->tasks
+//            'tasks' => $user->tasks
         ];
 
         return $this->successResponse($response,  'Auth is Successfully!');

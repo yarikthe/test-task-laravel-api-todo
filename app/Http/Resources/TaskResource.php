@@ -28,7 +28,11 @@ class TaskResource extends JsonResource
                 'completed' => Carbon::parse($this->completedAt)->format('h:m:s d/m/Y'),
             ],
             'sub_tasks' => TaskResource::collection(Task::where('parent_id', $this->id)->get()),
-            'user' => $this->user
+            'owner' => [
+                'id' => $this->user->id,
+                'email' => $this->user->email,
+                'name' => $this->user->name,
+            ]
         ];
     }
 }

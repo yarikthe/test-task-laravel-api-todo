@@ -34,10 +34,16 @@ class ApiTaskController extends ApiBaseController
 
         if($status){
             $query->where('status', $status);
+
+            if(in_array($status, ['todo', 'done'])){
+                $query->where('status', $status);
+            }else{
+                return $this->errorResponse('Undefined filter option', 'Error option', 401);
+            }
         }
 
         if($priority){
-            if($priority >= 1 && $priority <= 5){
+            if(in_array($priority, [1, 2, 3, 4, 5])){
                 $query->where('priority', $priority);
             }else{
                 return $this->errorResponse('Undefined filter priority option', 'Error filter option', 401);
@@ -45,7 +51,9 @@ class ApiTaskController extends ApiBaseController
         }
 
         if($title){
-            $query->where('title', 'LIKE %' . $title . '%');
+            $query
+                ->where('title', 'LIKE', "%{$title}%");
+//                ->orWhere('description', 'LIKE', "%{$title}%");
         }
 
         if($sort){
@@ -55,18 +63,18 @@ class ApiTaskController extends ApiBaseController
             // priority
 
             if($sort == 'createdAt'){
-                $query->sortBy('created_at', 'DESC');
+                $query->orderBy('created_at', $request->input('sortValue', 'DESC'));
             }else if($sort == 'completedAt'){
-                $query->sortBy('completedAt', 'DESC');
+                $query->orderBy('completedAt', $request->input('sortValue', 'DESC'));
             }else if($sort == 'priority'){
-                $query->sortBy('priority', 'DESC');
+                $query->orderBy('priority', $request->input('sortValue', 'DESC'));
             }else{
                 return $this->errorResponse('Undefined sort option', 'Error option', 401);
             }
 
         }
 
-        $data = $query->whereNull('parent_id' )->limit($limit)->get();
+        $data = $query->whereNull('parent_id' )->limit($limit)->where('user_id',auth('sanctum')->user()->id)->get();
 
         $response = [
             'tasks' => TaskResource::collection($data),
@@ -83,6 +91,7 @@ class ApiTaskController extends ApiBaseController
         $validator = Validator::make($request->all(), [
             'title' => 'required|unique:tasks|max:255',
             'description' => 'required',
+            'user_id' => 'required',
         ]);
 
         if ($validator->fails()) {
@@ -107,6 +116,12 @@ class ApiTaskController extends ApiBaseController
             return $this->errorResponse('You can not delete completed task!', 'Error completed task', 401);
         }
 
+        $authID = auth('sanctum')->user()->id;
+
+        if($authID != $task->user_id){
+            return $this->errorResponse('You can not delete, you not owner!', 'Error', 401);
+        }
+
         if($task->delete())
         {
             return $this->successResponse([], 'Task was deleted successfully!');
@@ -121,14 +136,18 @@ class ApiTaskController extends ApiBaseController
         $task = Task::find($id);
 
         if(is_null($task)){
-            return $this->errorResponse('', 'Get tasks', '');
+            return $this->errorResponse('Task not found!', 'Error', 401);
         }
 
-        $task->updated($request->all());
+        $authID = auth('sanctum')->user()->id;
 
-        if($task->save())
+        if($authID != $task->user_id){
+            return $this->errorResponse('You can not updated, you not owner!', 'Error', 401);
+        }
+
+        if($task->update($request->all()))
         {
-            return $this->successResponse([], 'Task was updated successfully!');
+            return $this->successResponse(new TaskResource($task), 'Task was updated successfully!');
         }
 
         return $this->errorResponse('Error', 'Something wrong... Refresh latter!', 500);
@@ -147,6 +166,12 @@ class ApiTaskController extends ApiBaseController
 
         if($subTasks->count() >= 1){
             return $this->errorResponse('Can not completed task. You can have ' . $subTasks->count() . ' open subtasks!', 'Error deleted', 401);
+        }
+
+        $authID = auth('sanctum')->user()->id;
+
+        if($authID != $task->user_id){
+            return $this->errorResponse('You can not completed, you not owner!', 'Error', 401);
         }
 
         $task->status = 'done';
